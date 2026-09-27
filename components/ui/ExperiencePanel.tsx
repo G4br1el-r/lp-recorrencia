@@ -1,21 +1,43 @@
-"use client";
-
-import { m } from "motion/react";
 import Image from "next/image";
 import { type SiteAsset, siteAssets } from "@/lib/assets";
 import { EASE, MOTION_SPRING } from "@/lib/constants/motion";
 import type { Experience } from "@/lib/content/experiences";
+import { cssTransition } from "@/lib/style/transition";
 
 const PANEL = {
   idleDim: 0.55,
   imageActiveScale: 1.05,
+  imageIdleScale: 1,
   detailGapPx: 14,
 } as const;
 
 const DETAIL_SHIFT = { shown: "0%", hidden: "100%" } as const;
+const DETAIL_OPACITY = { shown: 1, hidden: 0 } as const;
+const DIM_OPACITY = { active: 0 } as const;
 
 const IMAGE_ZOOM = { duration: 1.4, ease: EASE.soft } as const;
 const DIM_FADE = { duration: 0.8, ease: EASE.soft } as const;
+
+const IMAGE_TRANSITION = cssTransition(
+  "transform",
+  IMAGE_ZOOM.duration,
+  IMAGE_ZOOM.ease,
+);
+const DIM_TRANSITION = cssTransition(
+  "opacity",
+  DIM_FADE.duration,
+  DIM_FADE.ease,
+);
+const DETAIL_TRANSITION = cssTransition(
+  "transform",
+  MOTION_SPRING.accordion.duration,
+  MOTION_SPRING.accordion.ease,
+);
+const DETAIL_TEXT_TRANSITION = cssTransition(
+  "opacity",
+  MOTION_SPRING.accordion.duration,
+  MOTION_SPRING.accordion.ease,
+);
 
 type ExperiencePanelProps = {
   item: Experience;
@@ -26,12 +48,14 @@ export function ExperiencePanel({ item, active }: ExperiencePanelProps) {
   const asset: SiteAsset = siteAssets.lifestyle[item.image];
 
   return (
-    <li className="relative h-full w-[82vw] shrink-0 overflow-hidden rounded-xl bg-stage-soft md:aspect-[6/5] md:w-auto">
-      <m.div
-        animate={{ scale: active ? PANEL.imageActiveScale : 1 }}
+    <li className="relative h-full w-[82vw] shrink-0 overflow-hidden rounded-xl bg-stage-soft will-change-transform md:aspect-[6/5] md:w-auto">
+      <div
         className="absolute inset-0"
-        initial={false}
-        transition={IMAGE_ZOOM}
+        data-panel-image=""
+        style={{
+          transform: `scale(${active ? PANEL.imageActiveScale : PANEL.imageIdleScale})`,
+          transition: IMAGE_TRANSITION,
+        }}
       >
         <div
           className="absolute -inset-x-[10%] inset-y-0 will-change-transform"
@@ -46,20 +70,24 @@ export function ExperiencePanel({ item, active }: ExperiencePanelProps) {
             style={{ objectPosition: asset.position }}
           />
         </div>
-      </m.div>
+      </div>
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_0%,rgba(0,0,0,0.1)_40%,rgba(0,0,0,0.88)_76%,rgba(0,0,0,0.96)_100%)]" />
-      <m.div
-        animate={{ opacity: active ? 0 : PANEL.idleDim }}
+      <div
         className="absolute inset-0 bg-stage"
-        initial={false}
-        transition={DIM_FADE}
+        data-panel-dim=""
+        style={{
+          opacity: active ? DIM_OPACITY.active : PANEL.idleDim,
+          transition: DIM_TRANSITION,
+        }}
       />
       <div className="absolute inset-x-0 bottom-0 p-6 md:p-8 lg:p-10">
-        <m.div
-          animate={{ y: active ? DETAIL_SHIFT.shown : DETAIL_SHIFT.hidden }}
+        <div
           className="relative"
-          initial={false}
-          transition={MOTION_SPRING.accordion}
+          data-panel-detail=""
+          style={{
+            transform: `translateY(${active ? DETAIL_SHIFT.shown : DETAIL_SHIFT.hidden})`,
+            transition: DETAIL_TRANSITION,
+          }}
         >
           <div className="absolute inset-x-0 bottom-full">
             <div className="flex items-center gap-3">
@@ -73,16 +101,17 @@ export function ExperiencePanel({ item, active }: ExperiencePanelProps) {
               {item.description}
             </p>
           </div>
-          <m.p
-            animate={{ opacity: active ? 1 : 0 }}
+          <p
             className="max-w-md text-sm leading-relaxed text-ink md:text-base"
-            initial={false}
-            style={{ paddingTop: PANEL.detailGapPx }}
-            transition={MOTION_SPRING.accordion}
+            style={{
+              opacity: active ? DETAIL_OPACITY.shown : DETAIL_OPACITY.hidden,
+              paddingTop: PANEL.detailGapPx,
+              transition: DETAIL_TEXT_TRANSITION,
+            }}
           >
             {item.detail}
-          </m.p>
-        </m.div>
+          </p>
+        </div>
       </div>
     </li>
   );

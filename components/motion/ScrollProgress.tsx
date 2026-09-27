@@ -9,7 +9,7 @@ export function ScrollProgress() {
   return (
     <m.div
       aria-hidden="true"
-      className="motion-only pointer-events-none fixed inset-x-0 top-0 h-[3px] origin-left bg-brand"
+      className="motion-only pointer-events-none fixed inset-x-0 top-0 h-[3px] origin-left bg-brand will-change-transform"
       style={{ scaleX: scrollYProgress, zIndex: Z_INDEX.scrollProgress }}
     />
   );
