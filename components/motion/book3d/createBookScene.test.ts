@@ -18,10 +18,6 @@ import {
   createBookScene,
   type StageViewport,
 } from "@/components/motion/book3d/createBookScene";
-import {
-  RENDER_PROFILES,
-  type RenderProfile,
-} from "@/components/motion/book3d/renderQuality";
 import { createStageState, type StageState } from "@/components/motion/stage";
 import { STAGE_PERSPECTIVE_PX } from "@/lib/constants/motion";
 import { type EditionId, editions } from "@/lib/content/editions";
@@ -150,11 +146,9 @@ function lastRenderer(): InstanceType<typeof mocks.FakeRenderer> {
   return renderer;
 }
 
-async function createStage(
-  profile: RenderProfile = RENDER_PROFILES.high,
-): Promise<Stage> {
+async function createStage(): Promise<Stage> {
   const host = document.createElement("div");
-  const scene = await createBookScene(host, VIEWPORT, profile);
+  const scene = await createBookScene(host, VIEWPORT);
   return { scene, host, renderer: lastRenderer() };
 }
 
@@ -246,7 +240,7 @@ describe("createBookScene", () => {
     const host = document.createElement("div");
     const visibleDuringCompile: boolean[] = [];
     let attachedDuringCompile = true;
-    const created = createBookScene(host, VIEWPORT, RENDER_PROFILES.high);
+    const created = createBookScene(host, VIEWPORT);
     const renderer = lastRenderer();
     renderer.compileAsync.mockImplementation(async (scene) => {
       attachedDuringCompile = host.contains(renderer.domElement);
@@ -285,7 +279,7 @@ describe("createBookScene", () => {
 
   it("descarta o renderer e rejeita quando a compilação falha", async () => {
     const host = document.createElement("div");
-    const created = createBookScene(host, VIEWPORT, RENDER_PROFILES.high);
+    const created = createBookScene(host, VIEWPORT);
     const renderer = lastRenderer();
     renderer.compileAsync.mockRejectedValue(new Error(COMPILE_FAILURE));
 
@@ -294,8 +288,8 @@ describe("createBookScene", () => {
     expect(host.contains(renderer.domElement)).toBe(false);
   });
 
-  it("perfil alto usa antialias e capa com clearcoat", async () => {
-    const stage = await createStage(RENDER_PROFILES.high);
+  it("usa antialias e capa com clearcoat", async () => {
+    const stage = await createStage();
     stage.scene.render(visibleState());
     const covers = materialsOf(bookOf(stage, SHOWN_EDITION).mesh).filter(
       (material): material is MeshPhysicalMaterial =>
@@ -307,17 +301,6 @@ describe("createBookScene", () => {
     expect(covers.every((material) => material.clearcoat === CLEARCOAT)).toBe(
       true,
     );
-  });
-
-  it("perfil leve desliga antialias e troca a capa por material sem clearcoat", async () => {
-    const stage = await createStage(RENDER_PROFILES.low);
-    stage.scene.render(visibleState());
-    const materials = materialsOf(bookOf(stage, SHOWN_EDITION).mesh);
-
-    expect(stage.renderer.options.antialias).toBe(false);
-    expect(
-      materials.some((material) => material instanceof MeshPhysicalMaterial),
-    ).toBe(false);
   });
 
   it("anexa o canvas ao host e renderiza na primeira chamada", async () => {
@@ -521,9 +504,9 @@ describe("createBookScene", () => {
     mocks.createBookTextures.mockRejectedValue(new Error(TEXTURE_FAILURE));
     const host = document.createElement("div");
 
-    await expect(
-      createBookScene(host, VIEWPORT, RENDER_PROFILES.high),
-    ).rejects.toThrow(TEXTURE_FAILURE);
+    await expect(createBookScene(host, VIEWPORT)).rejects.toThrow(
+      TEXTURE_FAILURE,
+    );
 
     const renderer = lastRenderer();
     expect(renderer.dispose).toHaveBeenCalledOnce();

@@ -1,8 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  currentRenderProfile,
+  currentRenderQuality,
   detectRenderQuality,
-  RENDER_PROFILES,
 } from "@/components/motion/book3d/renderQuality";
 
 const STRONG_CORES = 8;
@@ -50,26 +49,17 @@ describe("detectRenderQuality", () => {
   });
 });
 
-describe("currentRenderProfile", () => {
+describe("currentRenderQuality", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("devolve o perfil leve quando o ponteiro é de toque", () => {
+  it("devolve qualidade baixa quando o ponteiro é de toque", () => {
     vi.stubGlobal(
       "matchMedia",
       vi.fn(() => ({ matches: true })),
     );
 
-    expect(currentRenderProfile()).toBe(RENDER_PROFILES.low);
-  });
-
-  it("perfil leve reduz resolução, antialias, clearcoat e anisotropia", () => {
-    const { high, low } = RENDER_PROFILES;
-
-    expect(low.maxPixelRatio).toBeLessThan(high.maxPixelRatio);
-    expect(low.antialias).toBe(false);
-    expect(low.clearcoat).toBe(false);
-    expect(low.anisotropy).toBeLessThan(high.anisotropy);
+    expect(currentRenderQuality()).toBe("low");
   });
 });

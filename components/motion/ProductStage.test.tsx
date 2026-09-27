@@ -5,15 +5,21 @@ import {
   StageProvider,
   styleWriter,
 } from "@/components/motion/ProductStage";
+import { editions } from "@/lib/content/editions";
 
 const mocks = vi.hoisted(() => ({
   createBookScene: vi.fn(),
+  renderQuality: vi.fn<() => "high" | "low">(),
   tickerAdd: vi.fn(),
   tickerRemove: vi.fn(),
 }));
 
 vi.mock("@/components/motion/gsap", () => ({
   gsap: { ticker: { add: mocks.tickerAdd, remove: mocks.tickerRemove } },
+}));
+
+vi.mock("@/components/motion/book3d/renderQuality", () => ({
+  currentRenderQuality: mocks.renderQuality,
 }));
 
 vi.mock("@/components/motion/book3d/createBookScene", () => ({
@@ -85,6 +91,8 @@ describe("StageLayer", () => {
     observers.length = 0;
     mocks.createBookScene.mockReset();
     mocks.createBookScene.mockResolvedValue(scene);
+    mocks.renderQuality.mockReset();
+    mocks.renderQuality.mockReturnValue("high");
     scene.dispose.mockReset();
     mocks.tickerAdd.mockClear();
     vi.stubGlobal("IntersectionObserver", FakeIntersectionObserver);
@@ -97,6 +105,18 @@ describe("StageLayer", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("aparelho de toque ou fraco usa o livro em CSS sem criar cena WebGL", async () => {
+    mocks.renderQuality.mockReturnValue("low");
+    const { container } = renderStage();
+    interact();
+
+    await waitFor(() => {
+      expect(container.querySelectorAll(".book")).toHaveLength(editions.length);
+    });
+    expect(observers).toEqual([]);
+    expect(mocks.createBookScene).not.toHaveBeenCalled();
   });
 
   it("não observa nem cria a cena antes da primeira interação", async () => {

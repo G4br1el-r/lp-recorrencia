@@ -12,7 +12,7 @@ import type {
   BookScene,
   StageViewport,
 } from "@/components/motion/book3d/createBookScene";
-import { currentRenderProfile } from "@/components/motion/book3d/renderQuality";
+import { currentRenderQuality } from "@/components/motion/book3d/renderQuality";
 import { gsap } from "@/components/motion/gsap";
 import {
   whenInteracted,
@@ -40,6 +40,7 @@ type StageStyle = {
 const StageContext = createContext<StageState | null>(null);
 
 const STAGE_BOOK_FONT_SIZE = "calc(var(--book-width) * 0.13)";
+const MAX_PIXEL_RATIO = 2;
 const CSS_RENDERER_PARAM = { name: "livro", value: "css" } as const;
 const STAGE_PRELOAD_MARGIN = "100% 0px";
 const NO_FILTER = "none";
@@ -50,18 +51,14 @@ function forcesCssRenderer(): boolean {
   return params.get(CSS_RENDERER_PARAM.name) === CSS_RENDERER_PARAM.value;
 }
 
-function readViewport(
-  host: HTMLElement,
-  probe: HTMLElement,
-  maxPixelRatio: number,
-): StageViewport {
+function readViewport(host: HTMLElement, probe: HTMLElement): StageViewport {
   return {
     width: host.clientWidth,
     height: host.clientHeight,
     vw: window.innerWidth,
     vh: probe.offsetHeight,
     bookWidth: probe.offsetWidth,
-    pixelRatio: Math.min(window.devicePixelRatio, maxPixelRatio),
+    pixelRatio: Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO),
   };
 }
 
@@ -116,23 +113,20 @@ export function StageLayer() {
     if (!host || !probe || window.matchMedia(MEDIA.reduceMotion).matches) {
       return;
     }
-    if (forcesCssRenderer()) {
+    if (forcesCssRenderer() || currentRenderQuality() === "low") {
       setRenderer("css");
       return;
     }
 
     let cancelled = false;
     let scene: BookScene | null = null;
-    const profile = currentRenderProfile();
-    const measure = () => readViewport(host, probe, profile.maxPixelRatio);
+    const measure = () => readViewport(host, probe);
     const render = () => scene?.render(stage);
     const observer = new ResizeObserver(() => scene?.resize(measure()));
 
     const start = () => {
       import("@/components/motion/book3d/createBookScene")
-        .then(({ createBookScene }) =>
-          createBookScene(host, measure(), profile),
-        )
+        .then(({ createBookScene }) => createBookScene(host, measure()))
         .then((created) => {
           if (cancelled) {
             created.dispose();
