@@ -14,10 +14,12 @@ import {
   gatePoints,
   landingPoint,
   pinnedRange,
-  type ScrollInput,
   snapTarget,
-  waitsForIdle,
 } from "@/components/motion/snap";
+import {
+  limitTouchInertia,
+  projectedInertia,
+} from "@/components/motion/touchInertia";
 import { createWheelGate, gateWheel } from "@/components/motion/wheelGate";
 import { limitWheelLead } from "@/components/motion/wheelLead";
 import { MEDIA } from "@/lib/constants/motion";
@@ -25,15 +27,19 @@ import { MEDIA } from "@/lib/constants/motion";
 const LENIS_OPTIONS = {
   lerp: 0.085,
   wheelMultiplier: 0.95,
-  touchMultiplier: 1.4,
+  touchMultiplier: 1,
   smoothWheel: true,
-  syncTouch: false,
+  syncTouch: true,
+  syncTouchLerp: 0.075,
+  touchInertiaExponent: 1.7,
   autoRaf: false,
 } as const;
 
 const SECONDS_TO_MILLISECONDS = 1000;
 
 const MAX_WHEEL_LEAD_VIEWPORTS = 0.75;
+
+const MAX_TOUCH_INERTIA_VIEWPORTS = 0.5;
 
 const WHEEL_GATE_IDLE_MS = 220;
 
@@ -106,6 +112,26 @@ export function SmoothScrollProvider({ children }: { children: ReactNode }) {
     const instance = new Lenis({
       ...LENIS_OPTIONS,
       virtualScroll: (data) => {
+        if (data.event.type === "touchend") {
+          const limited = limitTouchInertia({
+            inertia: projectedInertia(
+              data.deltaY,
+              instance.velocity,
+              LENIS_OPTIONS.touchInertiaExponent,
+            ),
+            target: instance.targetScroll,
+            maxTravel: window.innerHeight * MAX_TOUCH_INERTIA_VIEWPORTS,
+            points: gatePoints(),
+            tolerancePx: SNAP.tolerancePx,
+          });
+          if (limited !== 0) {
+            instance.scrollTo(instance.targetScroll + limited, {
+              programmatic: false,
+              lerp: LENIS_OPTIONS.syncTouchLerp,
+            });
+          }
+          return false;
+        }
         if (data.event.type === "wheel") {
           const limited = limitWheelLead({
             delta: data.deltaY,
@@ -143,7 +169,6 @@ export function SmoothScrollProvider({ children }: { children: ReactNode }) {
     let snapping = false;
     let cancelling = false;
     let touching = false;
-    let lastInput: ScrollInput = "other";
 
     const settle = () => {
       if (
@@ -151,7 +176,6 @@ export function SmoothScrollProvider({ children }: { children: ReactNode }) {
           isStopped: instance.isStopped,
           isScrolling: instance.isScrolling,
           touching,
-          lastInput,
         })
       ) {
         return;
@@ -198,34 +222,26 @@ export function SmoothScrollProvider({ children }: { children: ReactNode }) {
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
-      lastInput = "other";
       if (SNAP_CANCEL_KEYS.has(event.key)) {
         cancelSnap();
       }
     };
 
-    const onWheel = () => {
-      lastInput = "other";
-      cancelSnap();
-    };
-
-    const onPointerDown = (event: PointerEvent) => {
-      if (event.pointerType !== "touch") {
-        lastInput = "other";
-      }
-      cancelSnap();
-    };
-
     const onTouchStart = () => {
       touching = true;
-      lastInput = "touch";
       cancelSnap();
+    };
+
+    const settleWhenIdle = () => {
+      if (instance.isScrolling === false) {
+        settle();
+      }
     };
 
     const onTouchEnd = () => {
       touching = false;
       window.clearTimeout(idleTimer);
-      idleTimer = window.setTimeout(settle, SNAP.idleMs);
+      idleTimer = window.setTimeout(settleWhenIdle, SNAP.idleMs);
     };
 
     const onScroll = () => {
@@ -244,7 +260,7 @@ export function SmoothScrollProvider({ children }: { children: ReactNode }) {
       } else {
         stillFrames += 1;
       }
-      if (waitsForIdle(instance.isScrolling, lastInput)) {
+      if (instance.isScrolling === false) {
         idleTimer = window.setTimeout(settle, SNAP.idleMs);
       } else if (stillFrames >= SNAP.stillFrames) {
         stillFrames = 0;
@@ -282,11 +298,11 @@ export function SmoothScrollProvider({ children }: { children: ReactNode }) {
 
     instance.on("scroll", onScroll);
     document.addEventListener("click", onClick);
-    window.addEventListener("wheel", onWheel, USER_INPUT_LISTENER);
+    window.addEventListener("wheel", cancelSnap, USER_INPUT_LISTENER);
     window.addEventListener("touchstart", onTouchStart, USER_INPUT_LISTENER);
     window.addEventListener("touchend", onTouchEnd, USER_INPUT_LISTENER);
     window.addEventListener("touchcancel", onTouchEnd, USER_INPUT_LISTENER);
-    window.addEventListener("pointerdown", onPointerDown, USER_INPUT_LISTENER);
+    window.addEventListener("pointerdown", cancelSnap, USER_INPUT_LISTENER);
     window.addEventListener("keydown", onKeyDown, USER_INPUT_LISTENER);
     gsap.ticker.add(onTick, false, true);
     gsap.ticker.lagSmoothing(0);
@@ -296,7 +312,7 @@ export function SmoothScrollProvider({ children }: { children: ReactNode }) {
       window.clearTimeout(idleTimer);
       instance.off("scroll", onScroll);
       document.removeEventListener("click", onClick);
-      window.removeEventListener("wheel", onWheel, USER_INPUT_LISTENER);
+      window.removeEventListener("wheel", cancelSnap, USER_INPUT_LISTENER);
       window.removeEventListener(
         "touchstart",
         onTouchStart,
@@ -310,7 +326,7 @@ export function SmoothScrollProvider({ children }: { children: ReactNode }) {
       );
       window.removeEventListener(
         "pointerdown",
-        onPointerDown,
+        cancelSnap,
         USER_INPUT_LISTENER,
       );
       window.removeEventListener("keydown", onKeyDown, USER_INPUT_LISTENER);

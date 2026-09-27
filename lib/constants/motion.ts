@@ -30,6 +30,8 @@ export const STAGE_TWEEN_START = 0.001;
 
 export const STAGE_PERSPECTIVE_PX = 1400;
 
+export const BOOK_HEIGHT_PER_WIDTH = 1.5;
+
 export const REVEAL = {
   offsetPx: 28,
   durationS: 0.9,

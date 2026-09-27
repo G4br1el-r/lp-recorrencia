@@ -22,12 +22,13 @@ import {
 } from "@/components/motion/useScene";
 import { revealRowOnFocus } from "@/components/sections/editionsFocus";
 import { ProductBook } from "@/components/ui/ProductBook";
-import { GSAP_EASE } from "@/lib/constants/motion";
+import { BOOK_HEIGHT_PER_WIDTH, GSAP_EASE } from "@/lib/constants/motion";
 import { copy } from "@/lib/content/copy";
 import { type EditionId, editions } from "@/lib/content/editions";
 import { links, sectionIds } from "@/lib/content/links";
 import { pad } from "@/lib/format/number";
 import { useSelectionActions } from "@/lib/selection/SelectionContext";
+import type { CssVariables } from "@/lib/style/cssVariables";
 
 const SEGMENT_STARTS = [0.03, 0.23, 0.43] as const;
 const SEGMENT = {
@@ -59,7 +60,10 @@ const GATHER = {
 } as const;
 const POINTER_CENTER = 0.5;
 const HALF = 0.5;
-const ROW_REST = GATHER.copyAt + GATHER.copyDuration;
+const ROW_REST =
+  GATHER.copyAt +
+  GATHER.copyDuration +
+  GATHER.labelStagger * (editions.length - 1);
 const REST = [
   ...SEGMENT_STARTS.map(
     (start) => start + SEGMENT.turnAt + SEGMENT.turn * HALF,
@@ -114,7 +118,7 @@ function RevealLine({
 
 const SHOWCASE = {
   desktop: { xVw: 16, yVh: -8, scale: 1.15 },
-  mobile: { xVw: 0, yVh: -16, scale: 1.25 },
+  mobile: { xVw: 0, yVh: -6, scale: 1.1 },
   rotateFrom: -24,
   rotateTo: 14,
   enterXVw: 72,
@@ -152,17 +156,37 @@ function travelState(isDesktop: boolean, entering: boolean): BookState {
 
 const EDITION_ROW = {
   desktop: { xVw: [-28, 0, 28], scale: 0.72, rotationY: [14, 0, -14] },
-  mobile: { xVw: [-28, 0, 28], scale: 0.52, rotationY: [10, 0, -10] },
+  mobile: { xVw: [-28, 0, 28], scale: 0.62, rotationY: [10, 0, -10] },
 } as const;
 
-const ROW_Y_VH = 5;
+const ROW_Y_VH = { desktop: 5, mobile: 8 } as const;
 const ROW_RISE_VH = 36;
+
+const MOBILE_GAP = {
+  showcaseLabel: "1.5rem",
+  rowLabel: "1rem",
+  rowTitle: "2rem",
+};
+
+function halfBookHeight(scale: number): string {
+  return `var(--book-width) * ${(scale * BOOK_HEIGHT_PER_WIDTH) / 2}`;
+}
+
+const MOBILE_LAYOUT_STYLE: CssVariables = {
+  "--showcase-label-top": `calc(50% + ${SHOWCASE.mobile.yVh}vh + ${halfBookHeight(SHOWCASE.mobile.scale)} + ${MOBILE_GAP.showcaseLabel})`,
+  "--row-label-top": `calc(50% + ${ROW_Y_VH.mobile}vh + ${halfBookHeight(EDITION_ROW.mobile.scale)} + ${MOBILE_GAP.rowLabel})`,
+  "--row-title-bottom": `calc(50% - ${ROW_Y_VH.mobile}vh + ${halfBookHeight(EDITION_ROW.mobile.scale)} + ${MOBILE_GAP.rowTitle})`,
+};
+
+function rowY(isDesktop: boolean): number {
+  return isDesktop ? ROW_Y_VH.desktop : ROW_Y_VH.mobile;
+}
 
 function rowState(isDesktop: boolean, index: number): BookState {
   const row = isDesktop ? EDITION_ROW.desktop : EDITION_ROW.mobile;
   return {
     xVw: row.xVw[index],
-    yVh: ROW_Y_VH,
+    yVh: rowY(isDesktop),
     zPx: 0,
     scale: row.scale,
     rotationY: row.rotationY[index],
@@ -175,7 +199,7 @@ function rowState(isDesktop: boolean, index: number): BookState {
 function rowRiseState(isDesktop: boolean, index: number): BookState {
   return {
     ...rowState(isDesktop, index),
-    yVh: ROW_Y_VH + ROW_RISE_VH,
+    yVh: rowY(isDesktop) + ROW_RISE_VH,
     opacity: 0,
   };
 }
@@ -250,6 +274,7 @@ function EditionsScene() {
     };
     hits.forEach((hit, index) => {
       gsap.set(hit, {
+        top: `calc(50% + ${rowY(isDesktop)}vh)`,
         left: `calc(50% + ${row.xVw[index]}vw)`,
         width: `calc(var(--book-width) * ${row.scale})`,
       });
@@ -487,6 +512,7 @@ function EditionsScene() {
       className="relative h-svh overflow-hidden bg-stage"
       id={sectionIds.editions}
       ref={sectionRef}
+      style={MOBILE_LAYOUT_STYLE}
     >
       <StageLayer />
       {editions.map((edition, index) => (
@@ -503,13 +529,13 @@ function EditionsScene() {
       ))}
 
       <div className="pointer-events-none absolute inset-0 z-30">
-        <div className="absolute left-[var(--gutter)] top-[calc(var(--header-height)+2vh)]">
+        <div className="absolute inset-x-[var(--gutter)] top-[calc(var(--header-height)+2vh)] text-center lg:inset-x-auto lg:left-[var(--gutter)] lg:text-left">
           <h2 className="label">{copy.editions.intro}</h2>
         </div>
 
         {editions.map((edition, index) => (
           <div
-            className="motion-only absolute inset-x-[var(--gutter)] bottom-[7vh] lg:bottom-auto lg:left-[var(--gutter)] lg:right-auto lg:top-1/2 lg:w-[40vw] lg:-translate-y-1/2"
+            className="motion-only absolute inset-x-[var(--gutter)] top-[var(--showcase-label-top)] text-center lg:left-[var(--gutter)] lg:right-auto lg:top-1/2 lg:w-[40vw] lg:-translate-y-1/2 lg:text-left"
             data-edition-label={index}
             key={edition.id}
           >
@@ -563,7 +589,7 @@ function EditionsScene() {
         ))}
 
         <div
-          className="absolute inset-x-[var(--gutter)] top-[calc(var(--header-height)+6vh)] text-center"
+          className="absolute inset-x-[var(--gutter)] bottom-[var(--row-title-bottom)] text-center lg:bottom-auto lg:top-[calc(var(--header-height)+6vh)]"
           data-editions-gather=""
         >
           <SplitText
@@ -575,7 +601,7 @@ function EditionsScene() {
         {EDITION_ORDER.map((id, index) => (
           <div
             className={[
-              "absolute bottom-[8vh] w-[26vw] -translate-x-1/2 text-center lg:w-[22vw]",
+              "absolute top-[var(--row-label-top)] w-[26vw] -translate-x-1/2 text-center lg:top-auto lg:bottom-[8vh] lg:w-[22vw]",
               ROW_LABEL_CLASS[index],
             ].join(" ")}
             data-row-label=""

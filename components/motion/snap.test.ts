@@ -8,7 +8,6 @@ import {
   pinnedRange,
   snapStops,
   snapTarget,
-  waitsForIdle,
 } from "@/components/motion/snap";
 import { gateBoundary } from "@/components/motion/wheelGate";
 
@@ -355,10 +354,9 @@ describe("canSettle", () => {
     isStopped: false,
     isScrolling: false,
     touching: false,
-    lastInput: "other",
   } as const;
 
-  it("encaixa depois de uma rolagem suave parar", () => {
+  it("encaixa depois que a rolagem suave parou", () => {
     expect(canSettle(released)).toBe(true);
   });
 
@@ -367,36 +365,10 @@ describe("canSettle", () => {
   });
 
   it("não encaixa enquanto o dedo está na tela", () => {
-    expect(canSettle({ ...released, touching: true, lastInput: "touch" })).toBe(
-      false,
-    );
+    expect(canSettle({ ...released, touching: true })).toBe(false);
   });
 
-  it("encaixa a rolagem nativa de toque depois que o dedo sai", () => {
-    expect(
-      canSettle({ ...released, isScrolling: "native", lastInput: "touch" }),
-    ).toBe(true);
-  });
-
-  it("não encaixa rolagem nativa que não veio de toque", () => {
+  it("não encaixa rolagem nativa, como arrastar a barra de rolagem", () => {
     expect(canSettle({ ...released, isScrolling: "native" })).toBe(false);
-  });
-});
-
-describe("waitsForIdle", () => {
-  it("espera ociosidade quando o scroll suave terminou", () => {
-    expect(waitsForIdle(false, "other")).toBe(true);
-  });
-
-  it("espera ociosidade durante a inércia do toque", () => {
-    expect(waitsForIdle("native", "touch")).toBe(true);
-  });
-
-  it("não espera ociosidade em rolagem nativa sem toque", () => {
-    expect(waitsForIdle("native", "other")).toBe(false);
-  });
-
-  it("não espera ociosidade durante um scroll suave em andamento", () => {
-    expect(waitsForIdle("smooth", "touch")).toBe(false);
   });
 });

@@ -1,9 +1,14 @@
 import { getImageProps } from "next/image";
 import { SRGBColorSpace, Texture } from "three";
 import { siteAssets } from "@/lib/assets";
+import { BOOK_HEIGHT_PER_WIDTH } from "@/lib/constants/motion";
 import type { Edition, EditionId } from "@/lib/content/editions";
 
-export const BOOK_PROPORTION = { width: 1, height: 1.5, depth: 0.1 } as const;
+export const BOOK_PROPORTION = {
+  width: 1,
+  height: BOOK_HEIGHT_PER_WIDTH,
+  depth: 0.1,
+} as const;
 
 const TEXTURE_HEIGHT_PX = 1536;
 const TEXTURE_WIDTH_PX = Math.round(
