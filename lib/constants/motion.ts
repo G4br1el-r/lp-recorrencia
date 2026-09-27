@@ -51,6 +51,7 @@ export const MEDIA = {
   mobile: `(max-width: ${BREAKPOINT.desktopMin - 1}px)`,
   reduceMotion: "(prefers-reduced-motion: reduce)",
   allowMotion: "(prefers-reduced-motion: no-preference)",
+  coarsePointer: "(pointer: coarse)",
 } as const;
 
 export const Z_INDEX = {

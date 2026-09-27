@@ -10,10 +10,13 @@ import {
 } from "react";
 import { gsap, ScrollTrigger } from "@/components/motion/gsap";
 import {
+  canSettle,
   gatePoints,
   landingPoint,
   pinnedRange,
+  type ScrollInput,
   snapTarget,
+  waitsForIdle,
 } from "@/components/motion/snap";
 import { createWheelGate, gateWheel } from "@/components/motion/wheelGate";
 import { limitWheelLead } from "@/components/motion/wheelLead";
@@ -139,12 +142,17 @@ export function SmoothScrollProvider({ children }: { children: ReactNode }) {
     let stillFrames = 0;
     let snapping = false;
     let cancelling = false;
+    let touching = false;
+    let lastInput: ScrollInput = "other";
 
     const settle = () => {
       if (
-        !desktop.matches ||
-        instance.isStopped ||
-        instance.isScrolling === "native"
+        !canSettle({
+          isStopped: instance.isStopped,
+          isScrolling: instance.isScrolling,
+          touching,
+          lastInput,
+        })
       ) {
         return;
       }
@@ -190,9 +198,34 @@ export function SmoothScrollProvider({ children }: { children: ReactNode }) {
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
+      lastInput = "other";
       if (SNAP_CANCEL_KEYS.has(event.key)) {
         cancelSnap();
       }
+    };
+
+    const onWheel = () => {
+      lastInput = "other";
+      cancelSnap();
+    };
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.pointerType !== "touch") {
+        lastInput = "other";
+      }
+      cancelSnap();
+    };
+
+    const onTouchStart = () => {
+      touching = true;
+      lastInput = "touch";
+      cancelSnap();
+    };
+
+    const onTouchEnd = () => {
+      touching = false;
+      window.clearTimeout(idleTimer);
+      idleTimer = window.setTimeout(settle, SNAP.idleMs);
     };
 
     const onScroll = () => {
@@ -211,7 +244,7 @@ export function SmoothScrollProvider({ children }: { children: ReactNode }) {
       } else {
         stillFrames += 1;
       }
-      if (instance.isScrolling === false) {
+      if (waitsForIdle(instance.isScrolling, lastInput)) {
         idleTimer = window.setTimeout(settle, SNAP.idleMs);
       } else if (stillFrames >= SNAP.stillFrames) {
         stillFrames = 0;
@@ -249,9 +282,11 @@ export function SmoothScrollProvider({ children }: { children: ReactNode }) {
 
     instance.on("scroll", onScroll);
     document.addEventListener("click", onClick);
-    window.addEventListener("wheel", cancelSnap, USER_INPUT_LISTENER);
-    window.addEventListener("touchstart", cancelSnap, USER_INPUT_LISTENER);
-    window.addEventListener("pointerdown", cancelSnap, USER_INPUT_LISTENER);
+    window.addEventListener("wheel", onWheel, USER_INPUT_LISTENER);
+    window.addEventListener("touchstart", onTouchStart, USER_INPUT_LISTENER);
+    window.addEventListener("touchend", onTouchEnd, USER_INPUT_LISTENER);
+    window.addEventListener("touchcancel", onTouchEnd, USER_INPUT_LISTENER);
+    window.addEventListener("pointerdown", onPointerDown, USER_INPUT_LISTENER);
     window.addEventListener("keydown", onKeyDown, USER_INPUT_LISTENER);
     gsap.ticker.add(onTick, false, true);
     gsap.ticker.lagSmoothing(0);
@@ -261,11 +296,21 @@ export function SmoothScrollProvider({ children }: { children: ReactNode }) {
       window.clearTimeout(idleTimer);
       instance.off("scroll", onScroll);
       document.removeEventListener("click", onClick);
-      window.removeEventListener("wheel", cancelSnap, USER_INPUT_LISTENER);
-      window.removeEventListener("touchstart", cancelSnap, USER_INPUT_LISTENER);
+      window.removeEventListener("wheel", onWheel, USER_INPUT_LISTENER);
+      window.removeEventListener(
+        "touchstart",
+        onTouchStart,
+        USER_INPUT_LISTENER,
+      );
+      window.removeEventListener("touchend", onTouchEnd, USER_INPUT_LISTENER);
+      window.removeEventListener(
+        "touchcancel",
+        onTouchEnd,
+        USER_INPUT_LISTENER,
+      );
       window.removeEventListener(
         "pointerdown",
-        cancelSnap,
+        onPointerDown,
         USER_INPUT_LISTENER,
       );
       window.removeEventListener("keydown", onKeyDown, USER_INPUT_LISTENER);

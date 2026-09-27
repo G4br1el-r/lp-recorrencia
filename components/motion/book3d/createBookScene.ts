@@ -23,6 +23,7 @@ import {
   type BookTextures,
   createBookTextures,
 } from "./bookTextures";
+import type { RenderProfile } from "./renderQuality";
 
 export type StageViewport = {
   width: number;
@@ -40,14 +41,14 @@ export type BookScene = {
 };
 
 const CAMERA_CLIP = { near: 10, far: 8000 } as const;
-const MAX_ANISOTROPY = 8;
 const MIN_VISIBLE_OPACITY = 0.002;
 const PERCENT = 100;
 const TRACKED_BOOK_FIELDS = 13;
 const TRACKED_LIGHT_FIELDS = 3;
 
 const MATERIAL = {
-  cover: { roughness: 0.55, clearcoat: 0.3, clearcoatRoughness: 0.35 },
+  cover: { roughness: 0.55 },
+  clearcoat: { clearcoat: 0.3, clearcoatRoughness: 0.35 },
   pages: { roughness: 0.95 },
 } as const;
 
@@ -88,18 +89,32 @@ function createFadeTexture(): Texture {
   return texture;
 }
 
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
+}
+
 function createBook(
   geometry: BufferGeometry,
   textures: BookTextures,
   backColor: string,
   fade: Texture,
+  profile: RenderProfile,
 ): BookMesh {
   const cover = (parameters: MeshPhysicalMaterialParameters) =>
-    new MeshPhysicalMaterial({
-      ...MATERIAL.cover,
-      ...parameters,
-      transparent: true,
-    });
+    profile.clearcoat
+      ? new MeshPhysicalMaterial({
+          ...MATERIAL.cover,
+          ...MATERIAL.clearcoat,
+          ...parameters,
+          transparent: true,
+        })
+      : new MeshStandardMaterial({
+          ...MATERIAL.cover,
+          ...parameters,
+          transparent: true,
+        });
   const pages = (map: Texture) =>
     new MeshStandardMaterial({ ...MATERIAL.pages, map, transparent: true });
   const materials = [
@@ -128,8 +143,12 @@ function createBook(
 export async function createBookScene(
   host: HTMLElement,
   viewport: StageViewport,
+  profile: RenderProfile,
 ): Promise<BookScene> {
-  const renderer = new WebGLRenderer({ antialias: true, alpha: true });
+  const renderer = new WebGLRenderer({
+    antialias: profile.antialias,
+    alpha: true,
+  });
   renderer.setClearColor(0x000000, 0);
   renderer.toneMapping = NeutralToneMapping;
   const canvas = renderer.domElement;
@@ -153,7 +172,7 @@ export async function createBookScene(
   let textureSets: BookTextures[];
   try {
     const anisotropy = Math.min(
-      MAX_ANISOTROPY,
+      profile.anisotropy,
       renderer.capabilities.getMaxAnisotropy(),
     );
     textureSets = await Promise.all(
@@ -179,7 +198,13 @@ export async function createBookScene(
   const books = new Map<EditionId, BookMesh>();
   editions.forEach((edition, index) => {
     const textures = textureSets[index];
-    const book = createBook(geometry, textures, edition.cover.spine, fade);
+    const book = createBook(
+      geometry,
+      textures,
+      edition.cover.spine,
+      fade,
+      profile,
+    );
     disposables.push(
       ...Object.values(textures),
       ...book.materials,
@@ -321,7 +346,34 @@ export async function createBookScene(
     renderer.render(scene, camera);
   };
 
+  const setBooksVisible = (visible: boolean) => {
+    for (const book of books.values()) {
+      book.mesh.visible = visible;
+      book.reflection.visible = visible;
+    }
+  };
+
+  const warmUp = async () => {
+    setBooksVisible(true);
+    await renderer.compileAsync(scene, camera);
+    setBooksVisible(false);
+    const textures = [
+      fade,
+      ...textureSets.flatMap((set) => Object.values(set)),
+    ];
+    for (const texture of textures) {
+      renderer.initTexture(texture);
+      await nextFrame();
+    }
+  };
+
   resize(viewport);
+  try {
+    await warmUp();
+  } catch (error) {
+    dispose();
+    throw error;
+  }
   host.appendChild(canvas);
   return { resize, render, dispose };
 }

@@ -1,4 +1,35 @@
+import type Lenis from "lenis";
 import { ScrollTrigger } from "@/components/motion/gsap";
+
+export type ScrollInput = "touch" | "other";
+
+type SettleGateInput = {
+  isStopped: boolean;
+  isScrolling: Lenis["isScrolling"];
+  touching: boolean;
+  lastInput: ScrollInput;
+};
+
+export function canSettle({
+  isStopped,
+  isScrolling,
+  touching,
+  lastInput,
+}: SettleGateInput): boolean {
+  if (isStopped || touching) {
+    return false;
+  }
+  return isScrolling !== "native" || lastInput === "touch";
+}
+
+export function waitsForIdle(
+  isScrolling: Lenis["isScrolling"],
+  lastInput: ScrollInput,
+): boolean {
+  return (
+    isScrolling === false || (isScrolling === "native" && lastInput === "touch")
+  );
+}
 
 type Stops = readonly number[] | (() => readonly number[]);
 

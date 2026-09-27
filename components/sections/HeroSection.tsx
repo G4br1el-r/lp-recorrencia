@@ -302,18 +302,18 @@ function HeroScene() {
           </span>
           <SplitText
             as="h1"
-            className="font-display mt-6 text-[clamp(2.6rem,6.6vw,6.4rem)] font-bold leading-[0.95] text-ink"
+            className="font-display mt-5 text-[min(2.6rem,calc((100vw-2*var(--gutter))/9.4))] font-bold leading-[0.95] text-ink md:mt-6 md:text-[clamp(2.6rem,6.6vw,6.4rem)]"
             data-hero-headline=""
             lines={copy.hero.lines}
           />
           <div
-            className="mt-10 flex flex-wrap items-center justify-center gap-3"
+            className="mt-8 flex w-full max-w-xs flex-col items-stretch gap-3 sm:w-auto sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center sm:justify-center md:mt-10"
             data-hero-fade=""
             style={fadeOrderStyle(FADE_ORDER.actions)}
           >
-            <MagneticButton>
+            <MagneticButton className="w-full sm:w-auto">
               <ButtonLink
-                className="px-7 py-3.5 text-base"
+                className="w-full py-3.5 text-base sm:w-auto sm:px-7"
                 href={links.plans}
                 variant="brand"
               >
@@ -321,7 +321,7 @@ function HeroScene() {
               </ButtonLink>
             </MagneticButton>
             <ButtonLink
-              className="px-7 py-3.5 text-base"
+              className="w-full py-3.5 text-base sm:w-auto sm:px-7"
               href={`#${sectionIds.editions}`}
               variant="ghost"
             >

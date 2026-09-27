@@ -4,6 +4,7 @@ import {
   type Material,
   MathUtils,
   Mesh,
+  MeshPhysicalMaterial,
   MeshStandardMaterial,
   type PerspectiveCamera,
   PointLight,
@@ -17,6 +18,10 @@ import {
   createBookScene,
   type StageViewport,
 } from "@/components/motion/book3d/createBookScene";
+import {
+  RENDER_PROFILES,
+  type RenderProfile,
+} from "@/components/motion/book3d/renderQuality";
 import { createStageState, type StageState } from "@/components/motion/stage";
 import { STAGE_PERSPECTIVE_PX } from "@/lib/constants/motion";
 import { type EditionId, editions } from "@/lib/content/editions";
@@ -26,6 +31,7 @@ const mocks = vi.hoisted(() => {
   const renderers: FakeRenderer[] = [];
 
   class FakeRenderer {
+    readonly options: { antialias?: boolean };
     readonly domElement = document.createElement("canvas");
     readonly capabilities = { getMaxAnisotropy: () => GPU_MAX_ANISOTROPY };
     toneMapping?: number;
@@ -36,8 +42,13 @@ const mocks = vi.hoisted(() => {
       vi.fn<(scene: Scene, camera: PerspectiveCamera) => void>();
     readonly dispose = vi.fn();
     readonly forceContextLoss = vi.fn();
+    readonly compileAsync =
+      vi.fn<(scene: Scene, camera: PerspectiveCamera) => Promise<void>>();
+    readonly initTexture = vi.fn<(texture: Texture) => void>();
 
-    constructor() {
+    constructor(options: { antialias?: boolean } = {}) {
+      this.options = options;
+      this.compileAsync.mockResolvedValue(undefined);
       renderers.push(this);
     }
   }
@@ -104,6 +115,10 @@ const CHANGED_VALUE = 7;
 const RENDERS_AFTER_TWO_CHANGES = 3;
 const RENDERS_AFTER_RESIZE = 2;
 const TEXTURE_FAILURE = "falha ao carregar texturas";
+const COMPILE_FAILURE = "falha ao compilar shaders";
+const TEXTURES_PER_BOOK = 5;
+const FADE_TEXTURES = 1;
+const CLEARCOAT = 0.3;
 const SHOWN_EDITION: EditionId = "traditional";
 
 type Stage = {
@@ -135,9 +150,11 @@ function lastRenderer(): InstanceType<typeof mocks.FakeRenderer> {
   return renderer;
 }
 
-async function createStage(): Promise<Stage> {
+async function createStage(
+  profile: RenderProfile = RENDER_PROFILES.high,
+): Promise<Stage> {
   const host = document.createElement("div");
-  const scene = await createBookScene(host, VIEWPORT);
+  const scene = await createBookScene(host, VIEWPORT, profile);
   return { scene, host, renderer: lastRenderer() };
 }
 
@@ -214,10 +231,93 @@ describe("createBookScene", () => {
       return textures;
     });
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      callback(0);
+      return 0;
+    });
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("compila os shaders com os livros visíveis antes de anexar o canvas", async () => {
+    const host = document.createElement("div");
+    const visibleDuringCompile: boolean[] = [];
+    let attachedDuringCompile = true;
+    const created = createBookScene(host, VIEWPORT, RENDER_PROFILES.high);
+    const renderer = lastRenderer();
+    renderer.compileAsync.mockImplementation(async (scene) => {
+      attachedDuringCompile = host.contains(renderer.domElement);
+      for (const child of scene.children) {
+        if (child instanceof Mesh) {
+          visibleDuringCompile.push(child.visible);
+        }
+      }
+    });
+
+    const stage = { scene: await created, host, renderer };
+    stage.scene.render(createStageState());
+
+    expect(renderer.compileAsync).toHaveBeenCalledOnce();
+    expect(attachedDuringCompile).toBe(false);
+    expect(visibleDuringCompile.length).toBe(editions.length * MESHES_PER_BOOK);
+    expect(visibleDuringCompile.every(Boolean)).toBe(true);
+    expect(host.contains(renderer.domElement)).toBe(true);
+    for (const edition of editions) {
+      expect(bookOf(stage, edition.id).mesh.visible).toBe(false);
+    }
+  });
+
+  it("envia todas as texturas para a GPU antes de anexar o canvas", async () => {
+    const stage = await createStage();
+
+    expect(stage.renderer.initTexture).toHaveBeenCalledTimes(
+      editions.length * TEXTURES_PER_BOOK + FADE_TEXTURES,
+    );
+    for (const textures of textureSets) {
+      for (const texture of Object.values(textures)) {
+        expect(stage.renderer.initTexture).toHaveBeenCalledWith(texture);
+      }
+    }
+  });
+
+  it("descarta o renderer e rejeita quando a compilação falha", async () => {
+    const host = document.createElement("div");
+    const created = createBookScene(host, VIEWPORT, RENDER_PROFILES.high);
+    const renderer = lastRenderer();
+    renderer.compileAsync.mockRejectedValue(new Error(COMPILE_FAILURE));
+
+    await expect(created).rejects.toThrow(COMPILE_FAILURE);
+    expect(renderer.dispose).toHaveBeenCalledOnce();
+    expect(host.contains(renderer.domElement)).toBe(false);
+  });
+
+  it("perfil alto usa antialias e capa com clearcoat", async () => {
+    const stage = await createStage(RENDER_PROFILES.high);
+    stage.scene.render(visibleState());
+    const covers = materialsOf(bookOf(stage, SHOWN_EDITION).mesh).filter(
+      (material): material is MeshPhysicalMaterial =>
+        material instanceof MeshPhysicalMaterial,
+    );
+
+    expect(stage.renderer.options.antialias).toBe(true);
+    expect(covers.length).toBeGreaterThan(0);
+    expect(covers.every((material) => material.clearcoat === CLEARCOAT)).toBe(
+      true,
+    );
+  });
+
+  it("perfil leve desliga antialias e troca a capa por material sem clearcoat", async () => {
+    const stage = await createStage(RENDER_PROFILES.low);
+    stage.scene.render(visibleState());
+    const materials = materialsOf(bookOf(stage, SHOWN_EDITION).mesh);
+
+    expect(stage.renderer.options.antialias).toBe(false);
+    expect(
+      materials.some((material) => material instanceof MeshPhysicalMaterial),
+    ).toBe(false);
   });
 
   it("anexa o canvas ao host e renderiza na primeira chamada", async () => {
@@ -421,9 +521,9 @@ describe("createBookScene", () => {
     mocks.createBookTextures.mockRejectedValue(new Error(TEXTURE_FAILURE));
     const host = document.createElement("div");
 
-    await expect(createBookScene(host, VIEWPORT)).rejects.toThrow(
-      TEXTURE_FAILURE,
-    );
+    await expect(
+      createBookScene(host, VIEWPORT, RENDER_PROFILES.high),
+    ).rejects.toThrow(TEXTURE_FAILURE);
 
     const renderer = lastRenderer();
     expect(renderer.dispose).toHaveBeenCalledOnce();

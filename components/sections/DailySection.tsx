@@ -31,13 +31,17 @@ export function DailySection() {
   return (
     <section
       aria-label="Todos os dias"
-      className="relative flex min-h-svh flex-col overflow-hidden bg-stage"
+      className="relative grid min-h-svh grid-rows-[auto_1fr_auto_auto] overflow-hidden bg-stage md:grid-cols-[1fr_auto] md:grid-rows-[auto_1fr_auto] md:gap-x-12"
       id={sectionIds.daily}
     >
       <PhotoBackdrop asset={siteAssets.lifestyle.dawnRoom} />
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 z-10 h-[40vh] bg-[linear-gradient(180deg,rgba(0,0,0,0.75)_0%,rgba(0,0,0,0.35)_55%,rgba(0,0,0,0)_100%)]"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-[55vh] bg-[linear-gradient(0deg,rgba(0,0,0,0.88)_0%,rgba(0,0,0,0.55)_55%,rgba(0,0,0,0)_100%)] md:hidden"
       />
 
       <div
@@ -48,7 +52,7 @@ export function DailySection() {
           {MARQUEE_COPIES.map((copyKey) =>
             DAYS.map((item) => (
               <span
-                className="font-display pr-[8vw] text-[clamp(7rem,22vw,24rem)] font-bold text-transparent [-webkit-text-stroke:1px_rgba(242,235,224,0.22)]"
+                className="font-display pr-[8vw] text-[clamp(6rem,22vw,24rem)] font-bold text-transparent [-webkit-text-stroke:1px_rgba(242,235,224,0.22)]"
                 key={`${copyKey}-${item.short}`}
               >
                 {item.short}
@@ -58,7 +62,19 @@ export function DailySection() {
         </div>
       </div>
 
-      <div className="relative z-30 px-[var(--gutter)] pt-[calc(var(--header-height)+3vh)]">
+      <div className="relative z-30 row-start-1 px-[var(--gutter)] pt-[calc(var(--header-height)+4vh)] md:col-start-1 md:row-start-3 md:self-end md:pt-0 md:pb-[clamp(4rem,12vh,8rem)]">
+        <RevealLines
+          as="h2"
+          className="font-display text-[clamp(2.8rem,7vw,6.5rem)] font-bold text-ink"
+          lines={[copy.daily.lines[0]]}
+        />
+        <RevealLines
+          className="font-display text-[clamp(2.8rem,7vw,6.5rem)] font-bold text-brand"
+          lines={[copy.daily.lines[1]]}
+        />
+      </div>
+
+      <div className="relative z-30 row-start-3 px-[var(--gutter)] md:col-span-2 md:row-start-1 md:pt-[calc(var(--header-height)+3vh)]">
         <RevealGroup
           aria-label={copy.daily.daysLabel}
           as="ol"
@@ -102,22 +118,10 @@ export function DailySection() {
         </RevealGroup>
       </div>
 
-      <div className="relative z-30 mt-auto flex flex-col gap-10 px-[var(--gutter)] pt-[30vh] pb-[clamp(4rem,12vh,8rem)] md:flex-row md:items-end md:justify-between md:gap-12">
-        <div>
-          <RevealLines
-            as="h2"
-            className="font-display text-[clamp(2.8rem,7vw,6.5rem)] font-bold text-ink"
-            lines={[copy.daily.lines[0]]}
-          />
-          <RevealLines
-            className="font-display text-[clamp(2.8rem,7vw,6.5rem)] font-bold text-brand"
-            lines={[copy.daily.lines[1]]}
-          />
-        </div>
-
+      <div className="relative z-30 row-start-4 px-[var(--gutter)] pt-6 pb-[clamp(3rem,8vh,5rem)] md:col-start-2 md:row-start-3 md:self-end md:justify-self-end md:pt-0 md:pb-[clamp(4rem,12vh,8rem)]">
         <div
           aria-live="polite"
-          className="relative min-h-40 w-full md:min-h-44 md:w-[min(26rem,30vw)]"
+          className="relative min-h-36 w-full md:min-h-44 md:w-[min(26rem,30vw)]"
           id={noteId}
         >
           <AnimatePresence initial={false} mode="wait">
